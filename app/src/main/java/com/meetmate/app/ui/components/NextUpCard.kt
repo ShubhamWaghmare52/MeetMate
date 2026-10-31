@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,12 +45,14 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun NextUpCard(
     meeting: Meeting,
+    occurrenceMillis: Long,
     nowMillis: Long,
     onClick: () -> Unit,
+    onJoin: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dateTime = LocalDateTime.ofInstant(
-        Instant.ofEpochMilli(meeting.dateTimeMillis),
+        Instant.ofEpochMilli(occurrenceMillis),
         ZoneId.systemDefault()
     )
     val dayLabel = TimeLabels.dayLabel(dateTime.toLocalDate(), LocalDate.now())
@@ -96,7 +101,7 @@ fun NextUpCard(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = TimeLabels.countdown(meeting.dateTimeMillis, nowMillis),
+                    text = TimeLabels.countdown(occurrenceMillis, nowMillis),
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White,
                     modifier = Modifier
@@ -142,6 +147,19 @@ fun NextUpCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+            }
+
+            if (meeting.meetingLink.isNotBlank()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onJoin,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = HeroGradientEnd)
+                ) {
+                    Icon(Icons.Rounded.Videocam, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Join meeting", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

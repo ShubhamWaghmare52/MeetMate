@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.meetmate.app.data.Meeting
 import com.meetmate.app.data.MeetingDatabase
+import com.meetmate.app.data.MeetingDraft
 import com.meetmate.app.notification.NotificationHelper
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -17,41 +18,46 @@ class MeetingViewModel(application: Application) : AndroidViewModel(application)
     val allMeetings = dao.getAllMeetings()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addMeeting(
-        title: String,
-        personName: String,
-        dateTimeMillis: Long,
-        reminderMinutesBefore: Int
-    ) {
+    init {
+        // Alarms vanish after a force-stop; opening the app puts them back.
+        viewModelScope.launch { NotificationHelper.rescheduleAll(getApplication()) }
+    }
+
+    fun addMeeting(draft: MeetingDraft) {
         viewModelScope.launch {
             val meeting = Meeting(
-                title = title,
-                personName = personName,
-                dateTimeMillis = dateTimeMillis,
-                reminderMinutesBefore = reminderMinutesBefore
+                title = draft.title,
+                personName = draft.personName,
+                dateTimeMillis = draft.dateTimeMillis,
+                reminderMinutesBefore = draft.reminderMinutesBefore,
+                notes = draft.notes,
+                category = draft.category,
+                repeat = draft.repeat,
+                meetingLink = draft.meetingLink
             )
             val id = dao.insert(meeting)
-            val savedMeeting = meeting.copy(id = id)
-            NotificationHelper.scheduleReminder(getApplication(), savedMeeting)
+            NotificationHelper.scheduleReminder(getApplication(), meeting.copy(id = id))
         }
     }
 
-    fun updateMeeting(
-        meeting: Meeting,
-        title: String,
-        personName: String,
-        dateTimeMillis: Long,
-        reminderMinutesBefore: Int
-    ) {
+    fun updateMeeting(meeting: Meeting, draft: MeetingDraft) {
         viewModelScope.launch {
+            val timingChanged = meeting.dateTimeMillis != draft.dateTimeMillis ||
+                meeting.repeat != draft.repeat ||
+                meeting.reminderMinutesBefore != draft.reminderMinutesBefore
             val updated = meeting.copy(
-                title = title,
-                personName = personName,
-                dateTimeMillis = dateTimeMillis,
-                reminderMinutesBefore = reminderMinutesBefore
+                title = draft.title,
+                personName = draft.personName,
+                dateTimeMillis = draft.dateTimeMillis,
+                reminderMinutesBefore = draft.reminderMinutesBefore,
+                notes = draft.notes,
+                category = draft.category,
+                repeat = draft.repeat,
+                meetingLink = draft.meetingLink,
+                // New timing means the next occurrence should ring even if an old one already did.
+                lastRemindedOccurrence = if (timingChanged) 0 else meeting.lastRemindedOccurrence
             )
             dao.update(updated)
-            NotificationHelper.cancelReminder(getApplication(), meeting.id)
             NotificationHelper.scheduleReminder(getApplication(), updated)
         }
     }
@@ -73,12 +79,11 @@ class MeetingViewModel(application: Application) : AndroidViewModel(application)
     fun restoreMeeting(meeting: Meeting) {
         viewModelScope.launch {
             dao.upsert(meeting)
-            if (!meeting.isCompleted) {
-                NotificationHelper.scheduleReminder(getApplication(), meeting)
-            }
+            NotificationHelper.scheduleReminder(getApplication(), meeting)
         }
     }
 
+    /** For a repeating meeting this ends the whole series. */
     fun completeMeeting(meeting: Meeting) {
         viewModelScope.launch {
             dao.markCompleted(meeting.id)

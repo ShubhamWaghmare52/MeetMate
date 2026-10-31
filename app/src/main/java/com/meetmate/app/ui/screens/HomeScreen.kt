@@ -5,9 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +63,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import com.meetmate.app.data.Meeting
+import com.meetmate.app.data.Repeat
+import com.meetmate.app.ui.components.ReminderIssue
+import com.meetmate.app.ui.components.ReminderIssueCard
+import com.meetmate.app.util.Links
+import com.meetmate.app.util.occurrenceMillis
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import com.meetmate.app.ui.components.AnimatedFab
 import com.meetmate.app.ui.components.EmptyKind
 import com.meetmate.app.ui.components.EmptyState
@@ -79,12 +89,16 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 
+private data class MeetingEntry(val meeting: Meeting, val at: Long)
+
 enum class MeetingFilter(val label: String) { Upcoming("Upcoming"), Today("Today"), Past("Past") }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     meetings: List<Meeting>,
+    issues: List<ReminderIssue>,
+    onFixIssue: (ReminderIssue) -> Unit,
+    onSettingsClick: () -> Unit,
     onAddClick: () -> Unit,
     onEditMeeting: (Meeting) -> Unit,
     onDeleteMeeting: (Meeting) -> Unit,
@@ -105,17 +119,24 @@ fun HomeScreen(
     }
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now()
-    fun Meeting.date(): LocalDate = Instant.ofEpochMilli(dateTimeMillis).atZone(zone).toLocalDate()
+    val context = LocalContext.current
 
-    val upcoming = meetings.filter { !it.isCompleted && it.dateTimeMillis >= now }
-    val todays = meetings.filter { it.date() == today }
-    val past = meetings.filter { it.isCompleted || it.dateTimeMillis < now }.reversed()
+    // Repeating meetings are shown at their next occurrence.
+    val entries = meetings
+        .map { MeetingEntry(it, if (it.isCompleted) it.dateTimeMillis else it.occurrenceMillis(now)) }
+        .sortedBy { it.at }
+    fun MeetingEntry.date(): LocalDate = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
+
+    val upcoming = entries.filter { !it.meeting.isCompleted && it.at >= now }
+    val todays = entries.filter { it.date() == today }
+    val past = entries.filter { it.meeting.isCompleted || it.at < now }.reversed()
 
     val searching = searchOpen && query.isNotBlank()
     val visible = when {
-        searching -> meetings.filter {
-            it.title.contains(query, ignoreCase = true) ||
-                it.personName.contains(query, ignoreCase = true)
+        searching -> entries.filter {
+            it.meeting.title.contains(query, ignoreCase = true) ||
+                it.meeting.personName.contains(query, ignoreCase = true) ||
+                it.meeting.notes.contains(query, ignoreCase = true)
         }
         else -> when (selectedFilter) {
             MeetingFilter.Upcoming -> upcoming
@@ -168,8 +189,13 @@ fun HomeScreen(
                         if (!searchOpen) query = ""
                     },
                     upcomingCount = upcoming.size,
-                    todayCount = todays.count { !it.isCompleted && it.dateTimeMillis >= now }
+                    todayCount = todays.count { !it.meeting.isCompleted && it.at >= now },
+                    onSettingsClick = onSettingsClick
                 )
+            }
+
+            items(issues, key = { "issue-${it.name}" }) { issue ->
+                ReminderIssueCard(issue = issue, onFix = { onFixIssue(issue) }, modifier = Modifier.animateItem())
             }
 
             if (!searching) {
@@ -187,11 +213,13 @@ fun HomeScreen(
             }
 
             if (hero != null) {
-                item(key = "hero-${hero.id}") {
+                item(key = "hero-${hero.meeting.id}") {
                     NextUpCard(
-                        meeting = hero,
+                        meeting = hero.meeting,
+                        occurrenceMillis = hero.at,
                         nowMillis = now,
-                        onClick = { onEditMeeting(hero) },
+                        onClick = { onEditMeeting(hero.meeting) },
+                        onJoin = { Links.open(context, hero.meeting.meetingLink) },
                         modifier = Modifier
                             .padding(top = 6.dp)
                             .animateItem()
@@ -223,14 +251,20 @@ fun HomeScreen(
                             .animateItem()
                     )
                 }
-                items(dayMeetings, key = { it.id }) { meeting ->
+                items(dayMeetings, key = { it.meeting.id }) { entry ->
+                    val meeting = entry.meeting
                     SwipeableMeetingRow(
                         meeting = meeting,
+                        occurrenceMillis = entry.at,
                         nowMillis = now,
                         onClick = { onEditMeeting(meeting) },
+                        onJoin = { Links.open(context, meeting.meetingLink) },
                         onComplete = {
                             onCompleteMeeting(meeting)
-                            withUndo("Marked as done", meeting)
+                            withUndo(
+                                if (meeting.repeat == Repeat.NONE) "Marked as done" else "Repeating meeting ended",
+                                meeting
+                            )
                         },
                         onDelete = {
                             onDeleteMeeting(meeting)
@@ -251,7 +285,8 @@ private fun Header(
     onQueryChange: (String) -> Unit,
     onToggleSearch: () -> Unit,
     upcomingCount: Int,
-    todayCount: Int
+    todayCount: Int,
+    onSettingsClick: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
 
@@ -269,6 +304,15 @@ private fun Header(
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+            }
+            FilledTonalIconButton(
+                onClick = onSettingsClick,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
+            ) {
+                Icon(Icons.Rounded.Tune, contentDescription = "Settings")
             }
             FilledTonalIconButton(
                 onClick = onToggleSearch,
@@ -366,7 +410,7 @@ private fun FilterTabs(
                     .weight(1f)
                     .clip(CircleShape)
                     .background(container)
-                    .clickable { onSelect(filter) }
+                    .selectable(selected = isSelected, role = Role.Tab) { onSelect(filter) }
                     .padding(vertical = 10.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -390,8 +434,10 @@ private fun FilterTabs(
 @Composable
 private fun SwipeableMeetingRow(
     meeting: Meeting,
+    occurrenceMillis: Long,
     nowMillis: Long,
     onClick: () -> Unit,
+    onJoin: () -> Unit,
     onComplete: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -415,7 +461,13 @@ private fun SwipeableMeetingRow(
 
     SwipeToDismissBox(
         state = state,
-        modifier = modifier,
+        // Swiping isn't available to screen-reader users, so expose the same actions to TalkBack.
+        modifier = modifier.semantics {
+            customActions = buildList {
+                if (!meeting.isCompleted) add(CustomAccessibilityAction("Mark done") { onComplete(); true })
+                add(CustomAccessibilityAction("Delete") { onDelete(); true })
+            }
+        },
         enableDismissFromStartToEnd = !meeting.isCompleted,
         backgroundContent = {
             val direction = state.dismissDirection
@@ -444,6 +496,12 @@ private fun SwipeableMeetingRow(
             }
         }
     ) {
-        MeetingCard(meeting = meeting, nowMillis = nowMillis, onClick = onClick)
+        MeetingCard(
+            meeting = meeting,
+            occurrenceMillis = occurrenceMillis,
+            nowMillis = nowMillis,
+            onClick = onClick,
+            onJoin = onJoin
+        )
     }
 }

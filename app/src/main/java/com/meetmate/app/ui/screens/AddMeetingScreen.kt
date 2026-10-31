@@ -92,6 +92,17 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.meetmate.app.data.Meeting
+import com.meetmate.app.data.MeetingCategories
+import com.meetmate.app.data.MeetingDraft
+import com.meetmate.app.data.Repeat
+import android.provider.CalendarContract
+import androidx.compose.material.icons.automirrored.rounded.Notes
+import androidx.compose.material.icons.rounded.EditCalendar
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
 import com.meetmate.app.parser.NaturalLanguageParser
 import com.meetmate.app.ui.components.VoiceInputButton
 import com.meetmate.app.util.TimeLabels
@@ -106,9 +117,10 @@ import java.util.Locale
 
 private val ExamplePhrases = listOf(
     "Lunch with Priya tomorrow at 1pm",
-    "Standup at 10am on Monday",
-    "Call with Alex at 6:30pm",
-    "Review with Sam on 15th at 11am"
+    "Standup every weekday at 10am",
+    "Call with Alex at noon",
+    "Review with Sam on 5 Nov at 11am",
+    "Gym in 2 hours"
 )
 
 private val ReminderOptions = listOf(5, 15, 30, 60)
@@ -117,7 +129,8 @@ private val ReminderOptions = listOf(5, 15, 30, 60)
 @Composable
 fun AddMeetingScreen(
     editMeeting: Meeting? = null,
-    onSave: (title: String, person: String, dateTimeMillis: Long, reminderMinutes: Int) -> Unit,
+    startWithVoice: Boolean = false,
+    onSave: (MeetingDraft) -> Unit,
     onDelete: ((Meeting) -> Unit)? = null,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -138,6 +151,10 @@ fun AddMeetingScreen(
     var personName by remember { mutableStateOf(editMeeting?.personName ?: "") }
     var meetingTitle by remember { mutableStateOf(editMeeting?.title ?: "") }
     var reminderMinutes by remember { mutableIntStateOf(editMeeting?.reminderMinutesBefore ?: 30) }
+    var notes by remember { mutableStateOf(editMeeting?.notes ?: "") }
+    var category by remember { mutableStateOf(editMeeting?.category ?: "General") }
+    var repeat by remember { mutableStateOf(editMeeting?.repeat ?: Repeat.NONE) }
+    var meetingLink by remember { mutableStateOf(editMeeting?.meetingLink ?: "") }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -151,6 +168,8 @@ fun AddMeetingScreen(
         parsed.date?.let { selectedDate = it }
         parsed.time?.let { selectedTime = it }
         parsed.title?.let { meetingTitle = it }
+        parsed.repeat?.let { repeat = it }
+        parsed.meetingLink?.let { meetingLink = it }
         lastParsed = text
         focusManager.clearFocus()
     }
@@ -188,7 +207,61 @@ fun AddMeetingScreen(
         }
 
         val millis = NaturalLanguageParser.toEpochMillis(selectedDate!!, selectedTime!!)
-        onSave(meetingTitle.trim(), personName.trim(), millis, reminderMinutes)
+        onSave(
+            MeetingDraft(
+                title = meetingTitle.trim(),
+                personName = personName.trim(),
+                dateTimeMillis = millis,
+                reminderMinutesBefore = reminderMinutes,
+                notes = notes.trim(),
+                category = category,
+                repeat = repeat,
+                meetingLink = meetingLink.trim()
+            )
+        )
+    }
+
+    fun launchVoice() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say your meeting…")
+        }
+        try {
+            isListening = true
+            speechLauncher.launch(intent)
+        } catch (e: ActivityNotFoundException) {
+            isListening = false
+            Toast.makeText(context, "Voice input isn't available on this device", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Opened from the "New meeting by voice" shortcut, tile or widget.
+    LaunchedEffect(Unit) { if (startWithVoice && !isEditing) launchVoice() }
+
+    fun addToCalendar() {
+        val date = selectedDate ?: return
+        val time = selectedTime ?: return
+        val start = NaturalLanguageParser.toEpochMillis(date, time)
+        val intent = Intent(Intent.ACTION_INSERT, CalendarContract.Events.CONTENT_URI).apply {
+            putExtra(CalendarContract.Events.TITLE, meetingTitle)
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start)
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, start + 30 * 60_000L)
+            putExtra(
+                CalendarContract.Events.DESCRIPTION,
+                listOf(
+                    personName.takeIf { it.isNotBlank() }?.let { "With $it" },
+                    meetingLink.takeIf { it.isNotBlank() },
+                    notes.takeIf { it.isNotBlank() }
+                ).filterNotNull().joinToString("\n")
+            )
+            repeatRule(repeat)?.let { putExtra(CalendarContract.Events.RRULE, it) }
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(context, "No calendar app found", Toast.LENGTH_SHORT).show()
+        }
     }
 
     Scaffold(
@@ -206,6 +279,11 @@ fun AddMeetingScreen(
                     }
                 },
                 actions = {
+                    if (selectedDate != null && selectedTime != null && meetingTitle.isNotBlank()) {
+                        IconButton(onClick = { addToCalendar() }) {
+                            Icon(Icons.Rounded.EditCalendar, contentDescription = "Add to calendar")
+                        }
+                    }
                     if (isEditing && onDelete != null) {
                         IconButton(onClick = { showDeleteConfirm = true }) {
                             Icon(
@@ -259,23 +337,7 @@ fun AddMeetingScreen(
                     isListening = isListening,
                     parsed = lastParsed != null && lastParsed == inputText,
                     onParse = { parseAndApply() },
-                    onMic = {
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                            )
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say your meeting…")
-                        }
-                        try {
-                            isListening = true
-                            speechLauncher.launch(intent)
-                        } catch (e: ActivityNotFoundException) {
-                            isListening = false
-                            Toast.makeText(context, "Voice input isn't available on this device", Toast.LENGTH_SHORT).show()
-                        }
-                    },
+                    onMic = { launchVoice() },
                     onExample = { phrase ->
                         inputText = phrase
                         parseAndApply(phrase)
@@ -314,11 +376,47 @@ fun AddMeetingScreen(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Done
+                    imeAction = ImeAction.Next
                 ),
+                colors = fieldColors()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = meetingLink,
+                onValueChange = { meetingLink = it },
+                label = { Text("Meeting link (optional)") },
+                placeholder = { Text("meet.google.com/abc-defg-hij") },
+                leadingIcon = { Icon(Icons.Rounded.Link, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 colors = fieldColors()
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                label = { Text("Notes (optional)") },
+                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Notes, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                minLines = 2,
+                maxLines = 6,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                colors = fieldColors()
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MeetingCategories.forEach { c ->
+                    QuickChip(label = c, selected = category == c) { category = c }
+                }
+            }
 
             Spacer(modifier = Modifier.height(28.dp))
             SectionLabel("When")
@@ -363,6 +461,17 @@ fun AddMeetingScreen(
                         label = TimeLabels.reminderLabel(mins),
                         selected = reminderMinutes == mins
                     ) { reminderMinutes = mins }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+            SectionLabel("Repeat")
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Repeat.entries.forEach { r ->
+                    QuickChip(label = r.label, selected = repeat == r) { repeat = r }
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -587,8 +696,18 @@ private fun SectionLabel(text: String) {
         text = text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
+        modifier = Modifier
+            .padding(start = 4.dp, bottom = 10.dp)
+            .semantics { heading() }
     )
+}
+
+/** iCalendar RRULE for the calendar app's "repeat" field. */
+private fun repeatRule(repeat: Repeat): String? = when (repeat) {
+    Repeat.NONE -> null
+    Repeat.DAILY -> "FREQ=DAILY"
+    Repeat.WEEKDAYS -> "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+    Repeat.WEEKLY -> "FREQ=WEEKLY"
 }
 
 @Composable

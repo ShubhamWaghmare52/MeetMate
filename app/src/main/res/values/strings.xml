@@ -1,3 +1,14 @@
 <resources>
     <string name="app_name">MeetMate</string>
+    <string name="widget_label">Next meeting</string>
+    <string name="widget_description">Your next meeting with a countdown, plus quick add by voice.</string>
+    <string name="widget_next_up">NEXT UP</string>
+    <string name="widget_empty_title">No upcoming meetings</string>
+    <string name="widget_empty_body">Tap + to add one by voice</string>
+    <string name="widget_add">New meeting by voice</string>
+    <string name="tile_label">New meeting</string>
+    <string name="shortcut_new">New meeting</string>
+    <string name="shortcut_new_long">Add a new meeting</string>
+    <string name="shortcut_voice">Say a meeting</string>
+    <string name="shortcut_voice_long">Add a meeting by voice</string>
 </resources>
