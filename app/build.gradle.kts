@@ -102,6 +102,11 @@ dependencies {
     implementation(libs.accompanist.permissions)
     debugImplementation(libs.compose.ui.tooling)
 
+    constraints {
+        // room-testing needs 1.8.1; the test APK must share the app's versions, so raise the app's too.
+        implementation(libs.kotlinx.serialization.core)
+    }
+
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.test.core)
