@@ -304,7 +304,8 @@ It's a single-module MVVM app:
 | `WAKE_LOCK` | keeping the CPU awake while the sound plays |
 | `VIBRATE` | alarm vibration |
 | `RECEIVE_BOOT_COMPLETED` | `RescheduleReceiver` after reboot |
-| `RECORD_AUDIO` | voice input |
+
+No `RECORD_AUDIO`: voice input hands off to the system speech recognizer (`RecognizerIntent`), which has its own microphone access, so MeetMate never asks for the microphone. No `INTERNET` either.
 
 ---
 
