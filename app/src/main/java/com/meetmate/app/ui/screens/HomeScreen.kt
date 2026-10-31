@@ -194,7 +194,7 @@ fun HomeScreen(
                         onClick = { onEditMeeting(hero) },
                         modifier = Modifier
                             .padding(top = 6.dp)
-                            .animateItemPlacement()
+                            .animateItem()
                     )
                 }
             }
@@ -220,7 +220,7 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .padding(top = 14.dp, start = 4.dp)
-                            .animateItemPlacement()
+                            .animateItem()
                     )
                 }
                 items(dayMeetings, key = { it.id }) { meeting ->
@@ -236,7 +236,7 @@ fun HomeScreen(
                             onDeleteMeeting(meeting)
                             withUndo("Meeting deleted", meeting)
                         },
-                        modifier = Modifier.animateItemPlacement()
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
