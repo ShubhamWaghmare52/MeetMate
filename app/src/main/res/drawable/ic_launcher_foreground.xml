@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Speech bubble (a conversation) holding a clock face, with a coral reminder badge. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,32a21,21 0,1 1,0 42a21,21 0,1 1,0 -42z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M42,62L35.5,76.5Q35,78 36.5,77.5L52,72Z" />
+    <path
+        android:strokeColor="#FF4338CA"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,42V53L62,58" />
+    <path
+        android:fillColor="#FF4338CA"
+        android:pathData="M54,50.2a2.8,2.8 0,1 1,0 5.6a2.8,2.8 0,1 1,0 -5.6z" />
+    <path
+        android:fillColor="#FFFF6B57"
+        android:pathData="M71,29a7,7 0,1 1,0 14a7,7 0,1 1,0 -14z" />
+</vector>

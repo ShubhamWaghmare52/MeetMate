@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_iris">#FF4338CA</color>
+    <color name="brand_coral">#FFFF6B57</color>
+    <color name="window_light">#FFF7F7FB</color>
+    <color name="window_dark">#FF0F0F17</color>
+</resources>

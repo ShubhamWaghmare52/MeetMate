@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon layer (Android 13+): single colour, so the clock is drawn as an outline. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="5"
+        android:pathData="M54,34a19,19 0,1 1,0 38a19,19 0,1 1,0 -38z" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,43V53L61.5,57.5" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M71,29a6,6 0,1 1,0 12a6,6 0,1 1,0 -12z" />
+</vector>
