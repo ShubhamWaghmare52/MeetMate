@@ -71,7 +71,7 @@ object NaturalLanguageParser {
         now: LocalTime = LocalTime.now()
     ): ParsedMeeting {
         val link = Links.find(input)
-        val withoutLink = if (link != null) input.replace(link, " ") else input
+        val withoutLink = if (link != null) input.replace(link.raw, " ") else input
         val lower = withoutLink.lowercase(Locale.ROOT).trim()
 
         val person = extractPerson(lower)
@@ -89,7 +89,7 @@ object NaturalLanguageParser {
             } else null,
             title = title,
             repeat = repeat,
-            meetingLink = link,
+            meetingLink = link?.url,
             needsTimePicker = time == null,
             needsDatePicker = date == null && time == null
         )
@@ -208,7 +208,8 @@ object NaturalLanguageParser {
             .replace(namedTimeRegex, "")
             .replace(Regex("""\b(?:at|as)\s+\d{1,2}(:\d{2})?\s*(am|pm)?"""), "")
             .replace(clockAmPmRegex, "")
-            .replace(Regex("""\bwith\s+[a-z]+(?:\s+[a-z]+)?"""), "")
+            // Remove exactly the words taken as the person, not whatever word follows them.
+            .let { text -> if (person != null) text.replace(Regex("""\bwith\s+${Regex.escape(person)}\b"""), "") else text }
             .replace(Regex("""\b(?:on\s+)?(?:the\s+)?\d{1,2}$ORDINAL\s+(?:of\s+)?(?:$monthAlternation)\b"""), "")
             .replace(Regex("""\b(?:on\s+)?(?:$monthAlternation)\s+\d{1,2}$ORDINAL\b"""), "")
             .replace(Regex("""\b(every\s+weekday|weekdays|every\s+working\s+day|every\s*day|daily|every\s+week|weekly)\b"""), "")

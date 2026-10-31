@@ -171,6 +171,20 @@ class NaturalLanguageParserTest {
     }
 
     @Test
+    fun `autocorrected and spoken links are still found`() {
+        // What Gboard actually produced on a Pixel for "meet.google.com/abc-defg-hij"
+        val typed = parse("Alarm test with Sam in 2 minutes meet. Google. Com/abc-defg-hij")
+        assertEquals("meet.google.com/abc-defg-hij", typed.meetingLink)
+        assertEquals("Alarm test", typed.title)
+        assertEquals("Sam", typed.personName)
+        assertEquals(
+            "meet.google.com/xyz-abcd-efg",
+            parse("sync at 4pm meet dot google dot com slash xyz-abcd-efg".replace(" slash ", "/")).meetingLink
+        )
+        assertEquals("https://zoom.us/j/AbC", parse("call https://Zoom.us/j/AbC at 5pm").meetingLink)
+    }
+
+    @Test
     fun `at inside a word is not a time`() {
         assertEquals("Chat", parse("chat 5pm").title)
     }

@@ -56,7 +56,11 @@ fun SettingsSheet(
                     SegmentedButton(
                         selected = mode == themeMode,
                         onClick = { onThemeChange(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size)
+                        shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     ) { Text(mode.label) }
                 }
             }
