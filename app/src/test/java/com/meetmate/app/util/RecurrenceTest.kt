@@ -49,6 +49,15 @@ class RecurrenceTest {
     }
 
     @Test
+    fun `weekdays meeting first set on a weekend starts on monday`() {
+        // Anchor Sunday 2 Nov 10:00, seen from Saturday: the first ring is Monday 3 Nov, not Sunday
+        val sunday = at(2025, 11, 2, 10)
+        assertEquals(at(2025, 11, 3, 10), Recurrence.nextOccurrence(sunday, Repeat.WEEKDAYS, at(2025, 11, 1, 11), zone))
+        // Other repeats keep their weekend anchor
+        assertEquals(sunday, Recurrence.nextOccurrence(sunday, Repeat.DAILY, at(2025, 11, 1, 11), zone))
+    }
+
+    @Test
     fun `wall clock time survives a DST change`() {
         val berlin = ZoneId.of("Europe/Berlin")
         val start = LocalDateTime.of(2025, 10, 20, 9, 0).atZone(berlin).toInstant().toEpochMilli()

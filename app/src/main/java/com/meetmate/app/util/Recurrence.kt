@@ -21,13 +21,21 @@ object Recurrence {
         fromMillis: Long,
         zone: ZoneId = ZoneId.systemDefault()
     ): Long {
-        if (repeat == Repeat.NONE || anchorMillis >= fromMillis) return anchorMillis
+        if (repeat == Repeat.NONE) return anchorMillis
 
         val anchor = LocalDateTime.ofInstant(Instant.ofEpochMilli(anchorMillis), zone)
+        fun LocalDateTime.millis() = atZone(zone).toInstant().toEpochMilli()
+
+        if (anchorMillis >= fromMillis) {
+            // A weekday meeting whose first date falls on a weekend starts on the Monday after it.
+            if (repeat != Repeat.WEEKDAYS || !anchor.dayOfWeek.isWeekend()) return anchorMillis
+            var first = anchor
+            while (first.dayOfWeek.isWeekend()) first = first.plusDays(1)
+            return first.millis()
+        }
+
         val from = LocalDateTime.ofInstant(Instant.ofEpochMilli(fromMillis), zone)
         var candidate = from.toLocalDate().atTime(anchor.toLocalTime())
-
-        fun LocalDateTime.millis() = atZone(zone).toInstant().toEpochMilli()
 
         when (repeat) {
             Repeat.DAILY -> if (candidate.millis() < fromMillis) candidate = candidate.plusDays(1)

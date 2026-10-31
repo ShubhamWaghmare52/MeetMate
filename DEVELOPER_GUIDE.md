@@ -248,17 +248,19 @@ It's a single-module MVVM app:
 | Input fragment | Interpreted as |
 |---|---|
 | `with rahul`, `with rahul sharma` | person (stop-words such as "me", "the", weekdays and months are ignored) |
-| `at 8`, `at 6:15`, `as 6:15` | time. **No am/pm with hour 1–7 → PM** (e.g. "at 5" → 17:00); 8–12 stay as written |
+| `at 8`, `at 6:15`, `at 12.30`, `as 6:15` | time (minutes after `:` or `.`). With no am/pm: "morning"/"breakfast" keep the hour as AM; "evening", "night", "tonight", "dinner", "afternoon" make 1–11 PM; otherwise **hour 1–7 → PM** (e.g. "at 5" → 17:00) and 8–12 stay as written |
+| `from 3 to 4pm`, `between 11 and 1pm`, `2-3pm` | the start time; it takes the end's am/pm unless that would put it after the end ("from 11 to 1pm" → 11:00). Needs "from"/"between" or an am/pm at the end, so "1 to 1" stays a title |
 | `8pm`, `3:30 am` | time |
 | `noon`, `midday`, `midnight` | 12:00, 12:00, 00:00 |
 | `in 30 minutes`, `in an hour`, `in half an hour`, `in 2 hrs` | date and time relative to now |
 | `today`, `tonight`, `tomorrow`, `day after tomorrow` | date |
 | `5 nov`, `5th of november`, `november 5` | that date this year, or next year if it has passed |
+| `31/12`, `5/11/2026`, `5/11/26` | day first; read month first only when that is the only valid date (`12/25`). Without a year, next year if it has passed |
 | `monday`, `this monday` | next occurrence of that weekday (today counts) |
 | `next monday` | strictly after today |
 | `next week` | today + 7 days |
 | `on 15`, `on the 15th` | that day this month, or next month if it has passed |
-| `daily`, `every day` · `every weekday`, `weekdays` · `weekly`, `every monday` | repeat: Daily · Weekdays · Weekly |
+| `daily`, `every day` · `every weekday`, `weekdays` · `weekly`, `every monday` | repeat: Daily · Weekdays · Weekly. A Weekdays meeting whose date lands on a weekend moves to the Monday (also enforced in `Recurrence.nextOccurrence`) |
 | `https://…`, `meet.google.com/…`, `zoom.us/…`, `teams.microsoft.com/…` | meeting link (case kept, removed from the title) |
 | time only, no date | today, or tomorrow if that time has already passed today |
 | leftover words | title. If fewer than 3 characters are left, the title becomes `Meeting with <Person>` |

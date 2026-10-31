@@ -188,4 +188,71 @@ class NaturalLanguageParserTest {
     fun `at inside a word is not a time`() {
         assertEquals("Chat", parse("chat 5pm").title)
     }
+
+    @Test
+    fun `minutes after a dot`() {
+        val p = parse("lunch next tuesday at 12.30")
+        assertEquals(LocalTime.of(12, 30), p.time)
+        assertEquals(LocalDate.of(2025, 11, 4), p.date)
+        assertEquals("Lunch", p.title)
+        assertEquals(LocalTime.of(18, 45), parse("call 6.45pm").time)
+    }
+
+    @Test
+    fun `numeric dates are day first`() {
+        val p = parse("review at 3 pm on 31/12")
+        assertEquals(LocalDate.of(2025, 12, 31), p.date)
+        assertEquals(LocalTime.of(15, 0), p.time)
+        assertEquals("Review", p.title)
+        assertEquals(LocalDate.of(2026, 11, 5), parse("sync 5/11/2026 at 10am").date)
+        assertEquals(LocalDate.of(2026, 11, 5), parse("sync 5/11/26 at 10am").date)
+        // Only month-first makes sense here
+        assertEquals(LocalDate.of(2025, 12, 25), parse("party 12/25 at 7pm").date)
+    }
+
+    @Test
+    fun `past numeric date rolls to next year`() {
+        assertEquals(LocalDate.of(2026, 3, 1), parse("audit 1/3 at 10am").date)
+    }
+
+    @Test
+    fun `words for the time of day pick am or pm`() {
+        val dinner = parse("dinner with alex at 8")
+        assertEquals(LocalTime.of(20, 0), dinner.time)
+        assertEquals("Dinner", dinner.title)
+        assertEquals("Alex", dinner.personName)
+        val gym = parse("gym at 6 in the morning")
+        assertEquals(LocalTime.of(6, 0), gym.time)
+        assertEquals("Gym", gym.title)
+        assertEquals(LocalTime.of(19, 0), parse("call at 7 this evening").time)
+        assertEquals(LocalTime.of(9, 0), parse("morning standup at 9").time)
+    }
+
+    @Test
+    fun `time ranges use the start`() {
+        val p = parse("meeting from 3 to 4pm")
+        assertEquals(LocalTime.of(15, 0), p.time)
+        assertEquals("Meeting", p.title)
+        assertEquals(LocalTime.of(11, 0), parse("review from 11 to 1pm").time)
+        assertEquals(LocalTime.of(14, 0), parse("sync 2-3pm").time)
+        assertEquals("Sync", parse("sync 2-3pm").title)
+        assertEquals(LocalTime.of(10, 0), parse("workshop between 10 and 11am").time)
+        assertEquals(LocalTime.of(9, 30), parse("call from 9:30 to 10:15am").time)
+    }
+
+    @Test
+    fun `a one to one is not a range`() {
+        val p = parse("1 to 1 with sam at 4pm")
+        assertEquals(LocalTime.of(16, 0), p.time)
+        assertEquals("Sam", p.personName)
+        assertEquals("1 to 1", p.title)
+    }
+
+    @Test
+    fun `every weekday never starts on a weekend`() {
+        // Saturday 1 Nov 2025, after 10:00: "tomorrow" would be Sunday
+        val p = NaturalLanguageParser.parse("standup every weekday at 10am", LocalDate.of(2025, 11, 1), LocalTime.of(11, 0))
+        assertEquals(LocalDate.of(2025, 11, 3), p.date)
+        assertEquals(LocalDate.of(2025, 11, 3), NaturalLanguageParser.parse("standup every weekday at 10am", LocalDate.of(2025, 11, 2), LocalTime.of(8, 0)).date)
+    }
 }
